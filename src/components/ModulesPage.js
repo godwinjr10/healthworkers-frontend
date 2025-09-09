@@ -1,5 +1,5 @@
 // src/components/ModulesPage.js
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -9,19 +9,53 @@ import {
   faClipboardList,
   faSignOutAlt 
 } from '@fortawesome/free-solid-svg-icons';
+import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import styles from './ModulesPage.module.css';
+
+const BACKEND_URL = "https://healthworkers-backend.onrender.com";
 
 const ModulesPage = () => {
   const navigate = useNavigate();
   const { isAuthenticated, setIsAuthenticated } = useContext(AuthContext);
+  const [userData, setUserData] = useState(null);
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('user');
-    setIsAuthenticated(false);
-    navigate('/login');
+  // Fetch user info from backend on mount
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+
+        const res = await axios.get(`${BACKEND_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true
+        });
+        setUserData(res.data);
+      } catch (err) {
+        console.error('Failed to fetch user data:', err);
+        // Optional: force logout if token invalid
+        localStorage.clear();
+        setIsAuthenticated(false);
+        navigate('/login');
+      }
+    };
+
+    fetchUserData();
+  }, [navigate, setIsAuthenticated]);
+
+  const handleLogout = async () => {
+    try {
+      await axios.post(`${BACKEND_URL}/api/auth/logout`, {}, { withCredentials: true });
+    } catch (err) {
+      console.warn('Logout API failed:', err);
+    } finally {
+      localStorage.removeItem('isAuthenticated');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      setIsAuthenticated(false);
+      navigate('/login');
+    }
   };
 
   const handleModuleClick = (modulePath) => {
@@ -94,14 +128,12 @@ const ModulesPage = () => {
           src="/arms.jpg" 
           alt="Uganda Coat of Arms" 
           className={styles.logo} 
-          onError={(e) => {
-            e.target.onerror = null; 
-            e.target.src = '/placeholder-logo.png';
-          }}
+          onError={(e) => { e.target.onerror = null; e.target.src = '/placeholder-logo.png'; }}
         />
         <div className={styles.headerContent}>
           <h1>UGANDA HEALTH WORKERS REGISTRY</h1>
           <p>Comprehensive Management System for Health Professionals</p>
+          {userData && <p>Welcome, {userData.name}</p>}
         </div>
         <button onClick={handleLogout} className={styles.logoutBtn}>
           <FontAwesomeIcon icon={faSignOutAlt} /> Logout
